@@ -144,6 +144,7 @@ impl Game {
 
     fn get_push(&mut self) {
         let p = &self.players[self.current_player];
+        let (row, col) = p.pos;
         let obj = p.objectives.last().unwrap();
         let obj_str = format!("{:?}", obj);
         let [obj_c1, obj_c2] = obj.to_chars();
@@ -154,10 +155,19 @@ impl Game {
             println!();
             println!("Where do you put the tile?");
             println!("(for example: enter '1e' to push the tile from the '1' position, oriented towards east)");
+            println!("(type \"hint\" for a hint)");
+            //println!("Reachable objects in 1 move: {:?}", self.board.objects_reachable_in_1_move_from(row, col));
+
             let mut s = String::new();
 
             std::io::stdin().read_line(&mut s)
                 .expect("Failed to read line");
+
+            // Display hint.
+            if s.trim().to_ascii_lowercase() == "hint" {
+                self.hint(row, col, *obj);
+                continue;
+            }
 
             // Check if the push given in input is valid.
             let entry: String = s.chars().filter(|c| c.is_digit(10)).collect();
@@ -198,29 +208,8 @@ impl Game {
             };
 
             // The push is valid, apply it.
-            self.board.push_tile(entry, orientation);
-
-            // Update player positions.
-            for p in self.players.iter_mut() {
-                match (p.pos.0, entry) {
-                    (1, EntryPoint::EastUp) => { p.pos.1 = (p.pos.1 + 6) % 7 },
-                    (1, EntryPoint::WestUp) => { p.pos.1 = (p.pos.1 + 1) % 7 },
-                    (3, EntryPoint::EastCenter) => { p.pos.1 = (p.pos.1 + 6) % 7 },
-                    (3, EntryPoint::WestCenter) => { p.pos.1 = (p.pos.1 + 1) % 7 },
-                    (5, EntryPoint::EastDown) => { p.pos.1 = (p.pos.1 + 6) % 7 },
-                    (5, EntryPoint::WestDown) => { p.pos.1 = (p.pos.1 + 1) % 7 },
-                    _ => {}
-                }
-                match (p.pos.1, entry) {
-                    (1, EntryPoint::NorthLeft) => { p.pos.0 = (p.pos.0 + 1) % 7 },
-                    (1, EntryPoint::SouthLeft) => { p.pos.0 = (p.pos.0 + 6) % 7 },
-                    (3, EntryPoint::NorthCenter) => { p.pos.0 = (p.pos.0 + 1) % 7 },
-                    (3, EntryPoint::SouthCenter) => { p.pos.0 = (p.pos.0 + 6) % 7 },
-                    (5, EntryPoint::NorthRight) => { p.pos.0 = (p.pos.0 + 1) % 7 },
-                    (5, EntryPoint::SouthRight) => { p.pos.0 = (p.pos.0 + 6) % 7 },
-                    _ => {}
-                }
-            }
+            let mut player_positions: Vec<_> = self.players.iter_mut().map(|p| &mut p.pos).collect();
+            self.board.push_tile(entry, orientation, &mut player_positions);
 
             return;
         }
@@ -233,6 +222,8 @@ impl Game {
         loop {
             println!("Player {}, you are in row {}, column {}. Where do you move?", self.players[self.current_player].to_colored_str(), row+1, col+1);
             println!("(for example: enter '35' to go to row 3, column 5. Or enter 'Sk' to go the Skull)");
+            //println!("Reachable objects: {:?}", self.board.objects_reachable_from(row, col));
+
             let mut s = String::new();
 
             std::io::stdin().read_line(&mut s)
@@ -269,7 +260,44 @@ impl Game {
             self.players[self.current_player].pos = next_pos;
             return;
         }
+    }
 
+    fn hint(&self, row: usize, col: usize, obj: TileContent) {
+        let reach = self.board.objects_reachable_in_1_move_from(row, col);
+
+        match reach.get(&obj) {
+            None => {
+                println!("The {:?} is not reachable in one move.", obj);
+            }
+            Some(v) => {
+                let v_num: Vec<_> = v.into_iter().map(|e| Game::entry_num(*e)).collect();
+
+                if v_num.len() == 1 {
+                    println!("The {:?} is reachable in one move: push from the {} position.", obj, v_num[0]);
+                }
+                else {
+                    println!("The {:?} is reachable in one move, push from one of the positions: {:?}.", obj, v_num);
+                }
+            }
+        }
+        println!();
+    }
+
+    fn entry_num(entry: EntryPoint) -> u8 {
+        match entry {
+            EntryPoint::NorthLeft => 1,
+            EntryPoint::NorthCenter => 2,
+            EntryPoint::NorthRight => 3,
+            EntryPoint::EastUp => 4,
+            EntryPoint::EastCenter => 5,
+            EntryPoint::EastDown => 6,
+            EntryPoint::SouthRight => 7,
+            EntryPoint::SouthCenter => 8,
+            EntryPoint::SouthLeft => 9,
+            EntryPoint::WestDown => 10,
+            EntryPoint::WestCenter => 11,
+            EntryPoint::WestUp => 12
+        }
     }
 
     pub fn is_over(&self) -> bool {

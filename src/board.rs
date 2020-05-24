@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::collections::HashMap;
 use std::collections::VecDeque;
 use rand::{thread_rng, Rng};
 use rand::seq::SliceRandom;
@@ -10,7 +11,7 @@ pub enum TileKind {
     Junction
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum TileContent {
     None,
     YellowMarker,
@@ -251,7 +252,7 @@ pub enum EntryPoint {
     WestDown
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Board {
     tiles: Vec<(Tile, Orientation)>,
     extra_tile: Tile,
@@ -299,7 +300,8 @@ impl Board {
 
     // Make a move by pushing the extra tile into the board, at a given
     // entry point and with a given orientation.
-    pub fn push_tile(&mut self, entry: EntryPoint, orientation: Orientation) {
+    // In addition, update the positions given in input (with wrapping)
+    pub fn push_tile(&mut self, entry: EntryPoint, orientation: Orientation, positions: &mut [&mut (usize, usize)]) {
         let (out_tile, out_pos) = match entry {
             EntryPoint::NorthLeft   => (self.push_north(1, orientation), EntryPoint::SouthLeft),
             EntryPoint::NorthCenter => (self.push_north(3, orientation), EntryPoint::SouthCenter),
@@ -316,6 +318,28 @@ impl Board {
         };
         self.extra_tile = out_tile;
         self.extra_pos = Some(out_pos);
+
+        // Update positions.
+        for pos in positions {
+            match (pos.0, entry) {
+                (1, EntryPoint::EastUp) => { pos.1 = (pos.1 + 6) % 7 },
+                (1, EntryPoint::WestUp) => { pos.1 = (pos.1 + 1) % 7 },
+                (3, EntryPoint::EastCenter) => { pos.1 = (pos.1 + 6) % 7 },
+                (3, EntryPoint::WestCenter) => { pos.1 = (pos.1 + 1) % 7 },
+                (5, EntryPoint::EastDown) => { pos.1 = (pos.1 + 6) % 7 },
+                (5, EntryPoint::WestDown) => { pos.1 = (pos.1 + 1) % 7 },
+                _ => {}
+            }
+            match (pos.1, entry) {
+                (1, EntryPoint::NorthLeft) => { pos.0 = (pos.0 + 1) % 7 },
+                (1, EntryPoint::SouthLeft) => { pos.0 = (pos.0 + 6) % 7 },
+                (3, EntryPoint::NorthCenter) => { pos.0 = (pos.0 + 1) % 7 },
+                (3, EntryPoint::SouthCenter) => { pos.0 = (pos.0 + 6) % 7 },
+                (5, EntryPoint::NorthRight) => { pos.0 = (pos.0 + 1) % 7 },
+                (5, EntryPoint::SouthRight) => { pos.0 = (pos.0 + 6) % 7 },
+                _ => {}
+            }
+        }
     }
 
     pub fn content_at(&self, row: usize, col: usize) -> TileContent {
@@ -474,6 +498,112 @@ impl Board {
             }
         }
         reachable
+    }
+
+    pub fn objects_reachable_from(&self, row: usize, col: usize) -> HashSet<TileContent> {
+        let reachable_pos = self.reachable_from(row, col);
+        reachable_pos
+            .into_iter()
+            .map(|(row, col)| self.content_at(row, col))
+            .filter(|c| c != &TileContent::None)
+            .collect()
+    }
+
+    pub fn objects_reachable_in_1_move_from(&self, row: usize, col: usize) -> HashMap<TileContent, Vec<EntryPoint>> {
+        // List the moves that we have to analyse.
+        let moves = match self.extra_tile.kind {
+            TileKind::Straight => {
+                vec![
+                    (EntryPoint::NorthLeft, Orientation::North),
+                    (EntryPoint::NorthLeft, Orientation::East),
+                    (EntryPoint::NorthCenter, Orientation::North),
+                    (EntryPoint::NorthCenter, Orientation::East),
+                    (EntryPoint::NorthRight, Orientation::North),
+                    (EntryPoint::NorthRight, Orientation::East),
+                    (EntryPoint::EastUp, Orientation::North),
+                    (EntryPoint::EastUp, Orientation::East),
+                    (EntryPoint::EastCenter, Orientation::North),
+                    (EntryPoint::EastCenter, Orientation::East),
+                    (EntryPoint::EastDown, Orientation::North),
+                    (EntryPoint::EastDown, Orientation::East),
+                    (EntryPoint::SouthLeft, Orientation::North),
+                    (EntryPoint::SouthLeft, Orientation::East),
+                    (EntryPoint::SouthCenter, Orientation::North),
+                    (EntryPoint::SouthCenter, Orientation::East),
+                    (EntryPoint::SouthRight, Orientation::North),
+                    (EntryPoint::SouthRight, Orientation::East),
+                    (EntryPoint::WestUp, Orientation::North),
+                    (EntryPoint::WestUp, Orientation::East),
+                    (EntryPoint::WestCenter, Orientation::North),
+                    (EntryPoint::WestCenter, Orientation::East),
+                    (EntryPoint::WestDown, Orientation::North),
+                    (EntryPoint::WestDown, Orientation::East)
+                ]
+            },
+            TileKind::Corner => {
+                vec![
+                    (EntryPoint::NorthLeft, Orientation::East),
+                    (EntryPoint::NorthLeft, Orientation::South),
+                    (EntryPoint::NorthCenter, Orientation::East),
+                    (EntryPoint::NorthCenter, Orientation::South),
+                    (EntryPoint::NorthRight, Orientation::East),
+                    (EntryPoint::NorthRight, Orientation::South),
+                    (EntryPoint::EastUp, Orientation::South),
+                    (EntryPoint::EastUp, Orientation::West),
+                    (EntryPoint::EastCenter, Orientation::South),
+                    (EntryPoint::EastCenter, Orientation::West),
+                    (EntryPoint::EastDown, Orientation::South),
+                    (EntryPoint::EastDown, Orientation::West),
+                    (EntryPoint::SouthLeft, Orientation::West),
+                    (EntryPoint::SouthLeft, Orientation::North),
+                    (EntryPoint::SouthCenter, Orientation::West),
+                    (EntryPoint::SouthCenter, Orientation::North),
+                    (EntryPoint::SouthRight, Orientation::West),
+                    (EntryPoint::SouthRight, Orientation::North),
+                    (EntryPoint::WestUp, Orientation::North),
+                    (EntryPoint::WestUp, Orientation::East),
+                    (EntryPoint::WestCenter, Orientation::North),
+                    (EntryPoint::WestCenter, Orientation::East),
+                    (EntryPoint::WestDown, Orientation::North),
+                    (EntryPoint::WestDown, Orientation::East)
+                ]
+            },
+            TileKind::Junction => {
+                vec![
+                    (EntryPoint::NorthLeft, Orientation::North),
+                    (EntryPoint::NorthCenter, Orientation::North),
+                    (EntryPoint::NorthRight, Orientation::North),
+                    (EntryPoint::EastUp, Orientation::East),
+                    (EntryPoint::EastCenter, Orientation::East),
+                    (EntryPoint::EastDown, Orientation::East),
+                    (EntryPoint::SouthLeft, Orientation::South),
+                    (EntryPoint::SouthCenter, Orientation::South),
+                    (EntryPoint::SouthRight, Orientation::South),
+                    (EntryPoint::WestUp, Orientation::West),
+                    (EntryPoint::WestCenter, Orientation::West),
+                    (EntryPoint::WestDown, Orientation::West),
+                ]
+            }
+        };
+
+        // Apply each move to a copy of the board.
+        let mut reachable_obj = HashMap::new();
+        for m in moves {
+            if Some(m.0) == self.extra_pos {
+                continue;
+            }
+
+            let mut new_board = self.clone();
+            let mut pos = (row, col);
+            new_board.push_tile(m.0, m.1, &mut [&mut pos]);
+            for o in new_board.objects_reachable_from(pos.0, pos.1) {
+                let pushes = reachable_obj.entry(o).or_insert(Vec::new());
+                if !pushes.contains(&m.0) {
+                    pushes.push(m.0);
+                }
+            }
+        }
+        reachable_obj
     }
 }
 
