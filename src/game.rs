@@ -1,3 +1,4 @@
+use crate::analyzer::*;
 use crate::board::{TileContent, Board, EntryPoint, Orientation};
 use rand::thread_rng;
 use rand::seq::SliceRandom;
@@ -263,7 +264,7 @@ impl Game {
     }
 
     fn hint(&self, row: usize, col: usize, obj: TileContent) {
-        let reach = self.board.objects_reachable_in_1_move_from(row, col);
+        let reach = objects_reachable_in_1_move_from(&self.board, row, col);
 
         match reach.get(&obj) {
             None => {
