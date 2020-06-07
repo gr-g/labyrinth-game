@@ -214,7 +214,7 @@ impl Tile {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Orientation {
     North,
     East,
@@ -235,7 +235,7 @@ impl Orientation {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum EntryPoint {
     NorthLeft,
     NorthCenter,

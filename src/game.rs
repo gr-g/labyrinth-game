@@ -266,11 +266,38 @@ impl Game {
     fn hint(&self, row: usize, col: usize, obj: TileContent) {
         let reach = objects_reachable_in_1_move_from(&self.board, row, col);
 
-        match reach.get(&obj) {
-            None => {
+        println!();
+        match (reach.get(&obj), self.players.len()) {
+            (None, 2) => {
+                // With 2 players, we look one move ahead.
+                println!("The {:?} is not reachable in one move. Analyzing possible scenarios...", obj);
+
+                let scenarios = object_reachable_scenarios(&self.board, row, col, obj);
+                let ((best_push, best_move), best_n) = scenarios.into_iter().max_by(|&(_, n1), &(_, n2)| usize::cmp(&n1, &n2)).unwrap();
+
+                match best_n {
+                    0 => {
+                        println!("The {:?} is not reachable in two moves either.", obj);
+                    },
+                    1 ..= 24 => {
+                        println!("You should consider pushing \"{}{}\" and then moving to \"{} {}\".", Game::entry_num(best_push.0), Game::orientation_char(best_push.1), best_move.0+1, best_move.1+1);
+                        println!("Depending on what your opponent does, you have some chance to get to the {:?} on the next move.", obj);
+                    },
+                    25 ..= 47 => {
+                        println!("You should consider pushing \"{}{}\" and then moving to \"{} {}\".", Game::entry_num(best_push.0), Game::orientation_char(best_push.1), best_move.0+1, best_move.1+1);
+                        println!("Depending on what your opponent does, you have a good chance to get to the {:?} on the next move.", obj);
+                    },
+                    _ => {
+                        println!("You should consider pushing \"{}{}\" and then moving to \"{} {}\".", Game::entry_num(best_push.0), Game::orientation_char(best_push.1), best_move.0+1, best_move.1+1);
+                        println!("Irrespective of what your opponent does, you will be able to get to the {:?} on the next move.", obj);
+                    }
+                }
+            },
+            (None, _) => {
+                // We don't do further analysis if there are more than 2 players.
                 println!("The {:?} is not reachable in one move.", obj);
-            }
-            Some(v) => {
+            },
+            (Some(v), _) => {
                 let v_num: Vec<_> = v.into_iter().map(|e| Game::entry_num(*e)).collect();
 
                 if v_num.len() == 1 {
@@ -298,6 +325,15 @@ impl Game {
             EntryPoint::WestDown => 10,
             EntryPoint::WestCenter => 11,
             EntryPoint::WestUp => 12
+        }
+    }
+
+    fn orientation_char(orientation: Orientation) -> char {
+        match orientation {
+            Orientation::North => 'n',
+            Orientation::East => 'e',
+            Orientation::South => 's',
+            Orientation::West => 'w',
         }
     }
 
